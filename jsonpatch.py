@@ -54,8 +54,10 @@ __license__ = 'Modified BSD License'
 if sys.version_info >= (3, 0):
     basestring = (bytes, str)  # pylint: disable=C0103,W0622
     from itertools import zip_longest
+    from itertools import filterfalse
 else:
     from itertools import izip_longest as zip_longest
+    from itertools import ifilterfalse as filterfalse
 
 
 class JsonPatchException(Exception):
@@ -291,14 +293,14 @@ class JsonPatch(object):
                 yield {'op': 'replace', 'path': '/'.join(path), 'value': other}
 
         def compare_dict(path, src, dst):
-            for key in src:
+            for key in filterfalse(lambda x: x.startswith("__"), src.iterkeys()):
                 if key not in dst:
                     yield {'op': 'remove', 'path': '/'.join(path + [key])}
                     continue
                 current = path + [key]
                 for operation in compare_values(current, src[key], dst[key]):
                     yield operation
-            for key in dst:
+            for key in filterfalse(lambda x: x.startswith("__"), dst.iterkeys()):
                 if key not in src:
                     yield {'op': 'add',
                            'path': '/'.join(path + [key]),
