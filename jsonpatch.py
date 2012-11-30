@@ -314,7 +314,7 @@ class JsonPatch(object):
                     yield operation
             if lsrc < ldst:
                 for idx in range(lsrc, ldst):
-                    current = path + [str(idx)]
+                    current = path + ['-']
                     yield {'op': 'add',
                            'path': '/'.join(current),
                            'value': dst[idx]}
