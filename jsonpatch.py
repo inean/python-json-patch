@@ -280,25 +280,33 @@ class JsonPatch(object):
         >>> new == dst
         True
         """
-        def compare_values(path, value, other):
+        def compare_values(path, pfilter, value, other):
             if value == other:
                 return
             if isinstance(value, dict) and isinstance(other, dict):
-                for operation in compare_dict(path, value, other):
+                for operation in compare_dict(path, pfilter, value, other):
                     yield operation
             elif isinstance(value, list) and isinstance(other, list):
-                for operation in compare_list(path, value, other):
+                for operation in compare_list(path, pfilter, value, other):
                     yield operation
             else:
                 yield {'op': 'replace', 'path': '/'.join(path), 'value': other}
 
-        def compare_dict(path, src, dst):
+        def compare_dict(path, pfilter, src, dst):
+            if pfilter:
+                builder = []
+                for key in pfilter:
+                    fstr = "@{0}='{1}'" if isinstance(src[key], basestring) else "@{0}={1}"
+                    builder.append(fstr.format(key, src[key]))
+                path = ['/'.join(path + ['[{0}]'.format(','.join(builder))])]
             for key in filterfalse(lambda x: x.startswith("__"), src.iterkeys()):
                 if key not in dst:
                     yield {'op': 'remove', 'path': '/'.join(path + [key])}
                     continue
                 current = path + [key]
-                for operation in compare_values(current, src[key], dst[key]):
+                pfilter = "_{0}_id".format(key)
+                pfilter = src.get(pfilter, src.get("_" + pfilter))
+                for operation in compare_values(current, pfilter, src[key], dst[key]):
                     yield operation
             for key in filterfalse(lambda x: x.startswith("__"), dst.iterkeys()):
                 if key not in src:
@@ -306,11 +314,15 @@ class JsonPatch(object):
                            'path': '/'.join(path + [key]),
                            'value': dst[key]}
 
-        def compare_list(path, src, dst):
+        def compare_list(path, pfilter, src, dst):
             lsrc, ldst = len(src), len(dst)
             for idx in range(min(lsrc, ldst)):
-                current = path + [str(idx)]
-                for operation in compare_values(current, src[idx], dst[idx]):
+                current = path
+                if not pfilter or isinstance(src[idx], list):
+                    current = path + [str(idx)]
+                    assert pfilter == None
+                    pfilter = None
+                for operation in compare_values(current, pfilter, src[idx], dst[idx]):
                     yield operation
             if lsrc < ldst:
                 for idx in range(lsrc, ldst):
@@ -322,7 +334,7 @@ class JsonPatch(object):
                 for idx in reversed(range(ldst, lsrc)):
                     yield {'op': 'remove', 'path': '/'.join(path + [str(idx)])}
 
-        return cls(list(compare_dict([''], src, dst)))
+        return cls(list(compare_dict([''], None, src, dst)))
 
     def to_string(self):
         """Returns patch set as JSON string."""
