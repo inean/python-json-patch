@@ -53,6 +53,11 @@ class ApplyPatchTestCase(unittest.TestCase):
         res = jsonpatch.apply_patch(obj, [{'op': 'remove', 'path': '/foo/1'}])
         self.assertEqual(res['foo'], ['bar', 'baz'])
 
+    def test_remove_array_item_with_key(self):
+        obj = {'foo': [ {'id': 10, 'value':'qux'}, {'id' : 20, 'value':'baz'}]}
+        res = jsonpatch.apply_patch(obj, [{'op': 'remove', 'path': '/foo/[@id=20]'}])
+        self.assertEqual(res['foo'],[{'id': 10, 'value':'qux'}])
+
     def test_replace_object_key(self):
         obj = {'foo': 'bar', 'baz': 'qux'}
         res = jsonpatch.apply_patch(obj, [{'op': 'replace', 'path': '/baz', 'value': 'boo'}])
@@ -74,6 +79,11 @@ class ApplyPatchTestCase(unittest.TestCase):
         res = jsonpatch.apply_patch(obj, [{'op': 'replace', 'path': '/foo/1',
                                            'value': 'boo'}])
         self.assertEqual(res['foo'], ['bar', 'boo', 'baz'])
+
+    def test_replace_array_item_with_key(self):
+        obj = {'foo': [ {'id': 10, 'entry':'bar'}, {'id' : 20, 'entry':'baz'}]}
+        res = jsonpatch.apply_patch(obj, [{'op': 'replace', 'path': '/foo/[@id=10]/entry', 'value': 'qux'}])
+        self.assertEqual(res['foo'],[{'id': 10, 'entry':'qux'}, {'id' : 20, 'entry':'baz'}])
 
     def test_move_object_key(self):
         obj = {'foo': {'bar': 'baz', 'waldo': 'fred'},
@@ -250,6 +260,34 @@ class MakePatchTestCase(unittest.TestCase):
         res = patch.apply(src)
         self.assertEqual(res, dst)
 
+    def test_arrays_with_keys(self):
+        # elements started wwith "__" won't be replicated
+        # elements "_<column_name>_id" or "__<column_name>_id" will be used has list index
+        src = {
+            'numbers': [1, 2, 3],
+            'other': [1, 3, 4, 5],
+            'complex': [{'id': 10, 'entry': 'baa'}], '_complex_id': ['id']
+        }
+        dst = {
+            'numbers': [1, 3, 4, 5],
+            'other': [1, 3, 4],
+            'complex': [{'id': 10, 'entry': 'bbb'}, {'id':20, 'entry': 'faa'}]
+        }
+        path_obj = [
+            {"path": "/complex/[@id=10]/entry", "value": "bbb", "op": "replace"},
+            {"path": "/complex/-", "value": {"entry": "faa", "id": 20}, "op": "add"},
+            {"path": "/other/3", "op": "remove"},
+            {"path": "/_complex_id", "op": "remove"},
+            {"path": "/numbers/1", "value": 3, "op": "replace"},
+            {"path": "/numbers/2", "value": 4, "op": "replace"},
+            {"path": "/numbers/-", "value": 5, "op": "add"}
+        ]
+
+        patch = jsonpatch.make_patch(src, dst)
+        self.assertEqual(str(patch), str(jsonpatch.JsonPatch(path_obj)))
+        res = patch.apply(src)
+        self.assertEqual(res, dst)
+
     def test_complex_object(self):
         src = {'data': [
             {'foo': 1}, {'bar': [1, 2, 3]}, {'baz': {'1': 1, '2': 2}}
@@ -269,6 +307,28 @@ class MakePatchTestCase(unittest.TestCase):
         res = patch.apply(src)
         self.assertEqual(res, dst)
 
+    def test_apply_complex_with_list_with_keys(self):
+        src = {
+            'numbers': [1, 2, 3],
+            'other': [1, 3, 4, 5],
+            'complex': [{'id': 10, 'entry': 'baa'}]
+        }
+        patch_obj = [
+            {"path": "/complex/[@id=10]/entry", "value": "bbb", "op": "replace"},
+            {"path": "/complex/-", "value": {"entry": "faa", "id": 20}, "op": "add"},
+            {"path": "/other/3", "op": "remove"},
+            {"path": "/numbers/1", "value": 3, "op": "replace"},
+            {"path": "/numbers/2", "value": 4, "op": "replace"},
+            {"path": "/numbers/3", "value": 5, "op": "add"}
+        ]
+        res = jsonpatch.apply_patch(src, patch_obj)
+        expected = {
+            'numbers': [1, 3, 4, 5],
+            'other': [1, 3, 4],
+            'complex': [{'id': 10, 'entry': 'bbb'}, {'id':20, 'entry': 'faa'}]
+        }
+        self.assertEqual(expected, res)
+        
     def test_add_nested(self):
         # see http://tools.ietf.org/html/draft-ietf-appsawg-json-patch-03#appendix-A.10
         src = {"foo": "bar"}
