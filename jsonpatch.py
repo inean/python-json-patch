@@ -281,12 +281,17 @@ class JsonPatch(object):
         True
         """
         def compare_values(path, pfilter, value, other):
+            def is_like_dict(dct):
+                return any((isinstance(dct, dict), hasattr(dct, '__dict__')))
+            def is_like_list(lst):
+                return any((isinstance(lst, list), hasattr(lst, '__list__')))
+                
             if value == other:
                 return
-            if isinstance(value, dict) and isinstance(other, dict):
+            if is_like_dict(value) and is_like_dict(other):
                 for operation in compare_dict(path, pfilter, value, other):
                     yield operation
-            elif isinstance(value, list) and isinstance(other, list):
+            elif is_like_list(value) and is_like_list(other):
                 for operation in compare_list(path, pfilter, value, other):
                     yield operation
             else:
