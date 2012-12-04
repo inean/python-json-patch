@@ -261,12 +261,13 @@ class MakePatchTestCase(unittest.TestCase):
         self.assertEqual(res, dst)
 
     def test_arrays_with_keys(self):
-        # elements started wwith "__" won't be replicated
-        # elements "_<column_name>_id" or "__<column_name>_id" will be used has list index
+        # elements started with "__" won't be replicated
+        # elements "@<column_name>" or will be used has list index
         src = {
             'numbers': [1, 2, 3],
             'other': [1, 3, 4, 5],
-            'complex': [{'id': 10, 'entry': 'baa'}], '_complex_id': ['id']
+            'complex': [{'id': 10, 'entry': 'baa'}],
+            '@complex': ['id'],
         }
         dst = {
             'numbers': [1, 3, 4, 5],
@@ -277,10 +278,10 @@ class MakePatchTestCase(unittest.TestCase):
             {"path": "/complex/[@id=10]/entry", "value": "bbb", "op": "replace"},
             {"path": "/complex/-", "value": {"entry": "faa", "id": 20}, "op": "add"},
             {"path": "/other/3", "op": "remove"},
-            {"path": "/_complex_id", "op": "remove"},
+            {"path": "/@complex", "op": "remove"},
             {"path": "/numbers/1", "value": 3, "op": "replace"},
             {"path": "/numbers/2", "value": 4, "op": "replace"},
-            {"path": "/numbers/-", "value": 5, "op": "add"}
+            {"path": "/numbers/-", "value": 5, "op": "add"},
         ]
 
         patch = jsonpatch.make_patch(src, dst)

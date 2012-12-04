@@ -309,8 +309,8 @@ class JsonPatch(object):
                     yield {'op': 'remove', 'path': '/'.join(path + [key])}
                     continue
                 current = path + [key]
-                pfilter = "_{0}_id".format(key)
-                pfilter = src.get(pfilter, src.get("_" + pfilter))
+                pfilter = "@{0}".format(key)
+                pfilter = src.get(pfilter, src.get("__" + pfilter))
                 for operation in compare_values(current, pfilter, src[key], dst[key]):
                     yield operation
             for key in filterfalse(lambda x: x.startswith("__"), dst.iterkeys()):
