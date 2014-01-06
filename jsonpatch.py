@@ -260,6 +260,46 @@ class JsonPatch(object):
         return cls(patch)
 
     @classmethod
+    def from_union_diff(cls, src, *parts):
+        """Creates JsonPatch instance based on comparing of two document
+        objects. Json patch would be created for `src` argument
+        against `src` merged with `parts` one.
+
+        :param src: Data source document object.
+        :type src: dict
+
+        :param parts: Mulitple source document to extendd src.
+        :type parts: dict
+
+        :return: :class:`JsonPatch` instance.
+
+        >>> src = {'foo': 'bar', 'numbers': [1, 3, 4, 8]}
+        >>> dst = {'baz': 'qux', 'numbers': [1, 4, 7]}
+        >>> rst = {'foo': 'bar', 'baz': 'qux', 'numbers': [1, 4, 7]}
+        >>> patch = JsonPatch.from_union_diff(src, dst)
+        >>> new = patch.apply(src)
+        >>> new == rst
+        True
+
+        """
+        def merge(target, *args):
+            # Merge multiple dicts
+            if len(args) > 1:
+                for obj in args:
+                    merge(target, obj)
+                return target
+            # Recursively merge dicts and set non-dict values
+            obj = args[0]
+            for key, value in obj.iteritems():
+                if key in target and isinstance(target[key], dict):
+                        merge(target[key], value)
+                else:
+                    target[key] = copy.deepcopy(value)
+            return target
+        # create patch
+        return cls.from_diff(src, merge(copy.deepcopy(src), *parts))
+
+    @classmethod
     def from_diff(cls, src, dst):
         """Creates JsonPatch instance based on comparing of two document
         objects. Json patch would be created for `src` argument against `dst`
@@ -283,9 +323,10 @@ class JsonPatch(object):
         def compare_values(path, pfilter, value, other):
             def is_like_dict(dct):
                 return any((isinstance(dct, dict), hasattr(dct, '__dict__')))
+
             def is_like_list(lst):
                 return any((isinstance(lst, list), hasattr(lst, '__list__')))
-                
+
             if value == other:
                 return
             if is_like_dict(value) and is_like_dict(other):
