@@ -56,6 +56,7 @@ if sys.version_info >= (3, 0):
     from itertools import zip_longest
     from itertools import filterfalse
 else:
+    from itertools import ifilter as filter
     from itertools import izip_longest as zip_longest
     from itertools import ifilterfalse as filterfalse
 
@@ -246,6 +247,26 @@ class JsonPatch(object):
 
     def __ne__(self, other):
         return not(self == other)
+
+    def __getitem__(self, key):
+        default = []
+        retval = self.get(key, default)
+        if retval == default:
+            raise AttributeError(key)
+        return retval
+
+    def get(self, key, default=None):
+        def filter_func(key, value):
+            if value['path'] != key:
+                return False
+            return value.get('op') in ('add', 'remove', 'replace')
+        # get
+        ptr = key if key.startswith('/') else '/{0}'.format(key)
+        fnc = functools.partial(filter_func, ptr)
+        for entry in filter(fnc, reversed(self.patch)):
+            return entry['value']
+        # Not found
+        return default
 
     @classmethod
     def from_string(cls, patch_str):
